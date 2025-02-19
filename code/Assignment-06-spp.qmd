@@ -1,12 +1,12 @@
 ---
 title: "Assignment 6 - Split-plot randomization"
-author: "YOUR NAME HERE"  
+author: "Micah Jones"  
 format:
   html:
-    code-fold: false
+    code-fold: true 
     embed-resources: true
     toc: true
-    number-sections: false
+    number-sections: true
     theme: cerulean
 ---
 
@@ -17,6 +17,8 @@ For that, you will first need to watch (and code along with) the following split
 
 - split-plot randomization: https://youtu.be/rXTp3Vw_770?si=MajBK1aZ221orfpa&t=3401 (starts at 00:56:41, watch till end, about 50-min total)
 
+- The partial script for the video above is in our GitHub repository, 04-classcode, **02-13_spp_randomization_partial.qmd**.
+
 
 **AFTER watching the video and developing the code in class**, then start working on this HW assignment.  
 
@@ -25,33 +27,141 @@ The different sections representing what we did in class were left in the script
 # Instructions  
   - Move this script into the `code` subfolder of your `05_spp` project folder  
   - On this script, fill your name under the `title` section of the YAML  
+  
+# Goal of this assignment  
+The goal is this assignment is for you to **design a split-plot RCBD design applicable to your area of study**.  
 
-# a) Setup  
+This could be from your own experience, an example from the literature, or something you come up entirely on your own (as long as it makes sense).  
+
+In the headings below, you will answer a couple of questions related to study objectives and treatment design, and then move on to randomize your study, create a plot layout, and export the designed table to file.  
+
+# Setup  
 Here is where we load the packages we will use.  
 Make sure to load each package in the chunk below.  
 ```{r setup, warning=FALSE, message=FALSE}
 library(tidyverse)
-
 ```
 
 
 
-# b) Treatment design  
+# Treatment design  
+## Objectives  
+
+  I will be completing this assignment as a split-plot version of a study I am currently working on, as that design would also make sense for it (the actual study is an RCBD design). The objectives are to determine the effects of repeated application of a microbial inoculant called LEM (Local Effective Microorganisms) to an intensive vegetable cropping system, and of three different winter crops, on crop yield, marketability, and soil nutrition.
+
+
+## Treatment design explanation   
+  
+  The factors of interest are the rate of LEM application, at the levels of 3.6 L/m^2, 1.8 L/m^, and 0 L/m^2, and the winter crop (kale, carrots, or forage crimson clover). For the purposes of this assignment, I will be treating winter crop as the whole-plot treatment factor, and the LEM rate as the split-plot treatment factor. This experiment has 4 blocks, so there are 12 whole plots and 36 split plots.
+
+
+## Code  
+Here develop the code to setup your design (like in class).   
+
 
 
 # Split-plot in RCBD  
 ## WP randomization  
+```{r wp_rcbd_rand}
+set.seed(123)
+
+wp_rcbd_rand <- crossing(winter_crop = c("Kale", "Carrot", "Clover"),
+                         block = 1:4
+                         ) %>%
+  arrange(block) %>%
+  group_by(block) %>%
+  mutate(winter_crop = sample(winter_crop)) %>%
+  mutate(wplot = (block*100) + 1:3) %>% 
+  ungroup()
+
+wp_rcbd_rand
+```
 
 
 ## SP randomization  
+```{r sp_rcbd_rand}
+set.seed(123)
+
+sp_rcbd_rand  <- crossing(lemrate_lm2 = c(0, 1.8, 3.6),
+                          wplot = wp_rcbd_rand$wplot) %>%
+  arrange(wplot) %>%
+    group_by(wplot) %>%
+  mutate(lemrate_lm2 = sample(lemrate_lm2)) %>%
+  mutate(splot = paste0(wplot, "-", 1:3)) %>%
+  ungroup()
+
+
+sp_rcbd_rand
+```
 
 ## Joining WP and SP into one object
+```{r spp_rcbd_rand}
+spp_rcbd_rand <- wp_rcbd_rand %>%
+  right_join(sp_rcbd_rand) %>%
+  mutate(trtname = paste0(winter_crop, "+", lemrate_lm2))
+
+spp_rcbd_rand
+
+```
 
 
 ## Plot layout  
+```{r spp_rcbd_layout, warning=FALSE}
+spp_rcbd_layout <- spp_rcbd_rand %>%
+  # Defining number of rows and columns in the field for plotting purposes
+  mutate(row = rep(1:4, each = 9)) %>%
+  mutate(col = rep(seq(from = 1, 
+                       to = 9, #total number of treatments, 
+                       by = 1), 
+                   times = 4 #total number of blocks
+  )) %>%
+  # Creating plot and trtname labels for plotting
+  mutate(lab = paste0(splot, "\n", trtname))
 
+spp_rcbd_layout
+```
+
+
+```{r spp rcbd map, warning=FALSE}
+ggplot(data = spp_rcbd_layout, aes(x = row, 
+                                   y = -col)) +
+    geom_tile(aes(fill = factor(lemrate_lm2)),
+            color = "black",
+            show.legend = F) +
+  geom_tile(aes(color = winter_crop),
+            show.legend = F,
+            size = 2,
+            linetype = 2,
+            fill = NA
+            ) +
+
+    scale_fill_manual(values = c("#e5f0db",
+                               "#b1d095",
+                              "#5e813f")) +
+
+  geom_text(aes(label = splot), fontface = "bold", vjust = -.5)+
+  geom_text(aes(label = trtname), vjust = 1)+
+  labs(title = "Split-plot RCBD randomization of a\n3 Winter Crop (whole-plot) x 3 LEM rate (split-plot) treatment design") +
+  theme_void()
+```
 
 # Exporting to file  
+```{r}
+spp_rcbd_rand %>%
+  # Rearranging columns  
+  dplyr::select(block, wplot, winter_crop, 
+                splot, lemrate_lm2,
+                trtname) %>%
+  write_csv("../output/spp_rcbd_randomization_table_lem.csv")
+
+
+```
+```{r}
+ggsave("../output/spp_rcbd_layoutmap_lem.png",
+       width = 6,
+       height = 5,
+       bg = "white")
+```
 
 
 # Submitting your work  
